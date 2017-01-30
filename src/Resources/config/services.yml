@@ -1,0 +1,5 @@
+services:
+    tequila_mongodb:
+        class: Tequila\MongoDB\ODM\Database
+        factory: 'tequila_mongodb.connections.default:selectDatabase'
+        arguments: ['%tequila_mongodb.connections.default.default_db%']
