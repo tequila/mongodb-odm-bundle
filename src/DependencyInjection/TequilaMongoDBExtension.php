@@ -5,6 +5,7 @@ namespace Tequila\MongoDBBundle\DependencyInjection;
 use MongoDB\Driver\ReadConcern;
 use MongoDB\Driver\ReadPreference;
 use MongoDB\Driver\WriteConcern;
+use Symfony\Component\DependencyInjection\Alias;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\Config\FileLocator;
 use Symfony\Component\DependencyInjection\Definition;
@@ -12,8 +13,13 @@ use Symfony\Component\DependencyInjection\Reference;
 use Symfony\Component\HttpKernel\DependencyInjection\ConfigurableExtension;
 use Symfony\Component\DependencyInjection\Loader;
 use Tequila\MongoDB\Client;
+use Tequila\MongoDB\Database;
 use Tequila\MongoDB\Manager;
-use Tequila\MongoDB\ODM\Connection;
+use Tequila\MongoDB\ODM\BulkWriteBuilderFactory;
+use Tequila\MongoDB\ODM\DefaultMetadataFactory;
+use Tequila\MongoDB\ODM\DefaultRepositoryFactory;
+use Tequila\MongoDB\ODM\DocumentManager;
+use Tequila\MongoDB\ODM\SetBulkWriteBuilderListener;
 
 /**
  * This is the class that loads and manages your bundle configuration.
@@ -46,6 +52,11 @@ class TequilaMongoDBExtension extends ConfigurableExtension
             throw new \LogicException('No configuration for default connection provided.');
         }
 
+        $this->container->setDefinition(
+            'tequila_mongodb.metadata_factory',
+            new Definition(DefaultMetadataFactory::class)
+        );
+
         $this->addConnections($config['connections']);
 
         $loader = new Loader\YamlFileLoader($container, new FileLocator(__DIR__.'/../Resources/config'));
@@ -53,58 +64,113 @@ class TequilaMongoDBExtension extends ConfigurableExtension
     }
 
     /**
-     * @param array $connectionsConfig
+     * @param array $config
      */
-    private function addConnections(array $connectionsConfig)
+    private function addConnections(array $config)
     {
-        foreach ($connectionsConfig as $name => $config) {
-            if (isset($config['options'])) {
-                $clientOptions = $this->getClientOptions($config);
-                $uriOptions = $config['options'];
+        foreach ($config['connections'] as $name => $connectionConfig) {
+            if (isset($connectionConfig['options'])) {
+                $clientOptions = $this->getReadWriteOptions($connectionConfig);
+                $uriOptions = $connectionConfig['options'];
             } else {
                 $clientOptions = [];
                 $uriOptions = [];
             }
 
-            $driverOptions = isset($config['driverOptions']) ? $config['driverOptions'] : [];
-
-            $this->container->setParameter(
-                sprintf('tequila_mongodb.connections.%s.default_db', $name),
-                $config['defaultDatabaseName']
-            );
+            $driverOptions = isset($connectionConfig['driverOptions']) ? $connectionConfig['driverOptions'] : [];
 
             // Low-level Manager definition
             $managerId = sprintf('tequila_mongodb.connections.%s.manager', $name);
+            $managerDefinition = new Definition(
+                Manager::class,
+                [$connectionConfig['uri'], $uriOptions, $driverOptions]
+            );
+
             $this->container->setDefinition(
                 $managerId,
-                new Definition(Manager::class, [$config['uri'], $uriOptions, $driverOptions])
+                $managerDefinition
             );
 
             // Mongo client definition
-            $clientId = sprintf('tequila_mongodb.connections.%s.client', $name);
+            $clientId = sprintf('tequila_mongodb.connections.%s', $name);
             $this->container->setDefinition(
                 $clientId,
-                new Definition(Client::class, [new Reference($managerId)])
+                new Definition(Client::class, [new Reference($managerId), $clientOptions])
             );
 
-            // ODM connection definition
+            if ($name === $config['defaultConnection']) {
+                $this->container->setAlias('tequila_mongodb.client', new Alias($clientId));
+            }
+
+            $bulkBuilderFactoryId = $clientId . '.bulk_builder_factory';
             $this->container->setDefinition(
-                sprintf('tequila_mongodb.connections.%s', $name),
-                new Definition(Connection::class, [new Reference($clientId), $clientOptions])
+                $bulkBuilderFactoryId,
+                new Definition(BulkWriteBuilderFactory::class, [
+                    new Reference($managerId)
+                ])
             );
+
+            $queryListenerId = $clientId . '.query_listener';
+            $this->container->setDefinition(
+                $queryListenerId,
+                new Definition(SetBulkWriteBuilderListener::class, [
+                    new Reference($bulkBuilderFactoryId)
+                ])
+            );
+
+            $managerDefinition->addMethodCall('addQueryListener', [new Reference($queryListenerId)]);
+
+            $repositoryFactoryId = $clientId . '.repository_factory';
+            $this->container->setDefinition(
+                $repositoryFactoryId,
+                new Definition(DefaultRepositoryFactory::class, [
+                    new Reference('tequila_mongodb.metadata_factory')
+                ])
+            );
+
+            foreach ($connectionConfig['databases'] as $alias => $databaseConfig) {
+                $databaseId = $clientId . '.db.' . $alias;
+                $databaseOptions = isset($databaseConfig['options'])
+                    ? $this->getReadWriteOptions($databaseConfig['options'])
+                    : [];
+                $dbDefinition = new Definition(Database::class, [
+                    $databaseConfig['name'],
+                    $databaseOptions
+                ]);
+                $dbDefinition->setFactory([
+                    new Reference($clientId),
+                    'selectDatabase'
+                ]);
+
+                $this->container->setDefinition($databaseId, $dbDefinition);
+
+                $dmId = $databaseId . '.dm';
+                $this->container->setDefinition($dmId, new Definition(DocumentManager::class, [
+                    new Reference($databaseId),
+                    new Reference($bulkBuilderFactoryId),
+                    new Reference($repositoryFactoryId),
+                    new Reference('tequila_mongodb.metadata_factory')
+                ]));
+
+                if ($name === $config['defaultConnection'] && $alias === $connectionConfig['defaultDatabase']) {
+                    $this->container->setAlias('tequila_mongodb', new Alias($databaseId));
+                    $this->container->setAlias('tequila_mongodb.dm', new Alias($dmId));
+                }
+            }
         }
     }
+
 
     /**
      * @param array $config
      * @return array
      */
-    private function getClientOptions(array &$config)
+    private function getReadWriteOptions(array &$config)
     {
-        $clientOptions = [];
+        $options = [];
 
         if (isset($config['options']['readConcern'])) {
-            $clientOptions['readConcern'] = $this->getReadConcern(
+            $options['readConcern'] = $this->getReadConcern(
                 $config['options']['readConcern']
             );
 
@@ -112,7 +178,7 @@ class TequilaMongoDBExtension extends ConfigurableExtension
         }
 
         if (isset($config['options']['readPreference'])) {
-            $clientOptions['readPreference'] = $this->getReadPreference(
+            $options['readPreference'] = $this->getReadPreference(
                 $config['options']['readPreference']
             );
 
@@ -120,14 +186,14 @@ class TequilaMongoDBExtension extends ConfigurableExtension
         }
 
         if (isset($config['options']['writeConcern'])) {
-            $clientOptions['writeConcern'] = $this->getWriteConcern(
+            $options['writeConcern'] = $this->getWriteConcern(
                 $config['options']['writeConcern']
             );
 
             unset($config['options']['writeConcern']);
         }
 
-        return $clientOptions;
+        return $options;
     }
 
     /**
