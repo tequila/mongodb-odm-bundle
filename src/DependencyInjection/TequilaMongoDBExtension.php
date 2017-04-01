@@ -19,7 +19,7 @@ use Tequila\MongoDB\ODM\BulkWriteBuilderFactory;
 use Tequila\MongoDB\ODM\DefaultMetadataFactory;
 use Tequila\MongoDB\ODM\DefaultRepositoryFactory;
 use Tequila\MongoDB\ODM\DocumentManager;
-use Tequila\MongoDB\ODM\SetBulkWriteBuilderListener;
+use Tequila\MongoDB\ODM\QueryListener\SetBulkWriteBuilderListener;
 
 /**
  * This is the class that loads and manages your bundle configuration.
