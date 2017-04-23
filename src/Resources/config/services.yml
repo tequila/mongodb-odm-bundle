@@ -1,3 +1,0 @@
-services:
-    tequila_mongodb.metadata_factory:
-        class: Tequila\MongoDB\ODM\DefaultMetadataFactory
