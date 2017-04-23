@@ -55,9 +55,6 @@ class TequilaMongoDBExtension extends ConfigurableExtension
 
         $this->addConnections($config, $container);
         $this->addDatabases($config, $container);
-
-        $loader = new Loader\YamlFileLoader($container, new FileLocator(__DIR__.'/../Resources/config'));
-        $loader->load('services.yml');
     }
 
     /**
