@@ -4,9 +4,9 @@
     "type": "symfony-bundle",
     "require": {
         "tequila/mongodb-odm": "dev-master",
-        "symfony/config": "^3.0",
-        "symfony/dependency-injection": "^3.0",
-        "symfony/http-kernel": "^3.0"
+        "symfony/config": "^3.3",
+        "symfony/dependency-injection": "^3.3",
+        "symfony/http-kernel": "^3.3"
     },
     "autoload": {
         "psr-4": {

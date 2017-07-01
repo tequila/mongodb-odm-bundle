@@ -98,6 +98,8 @@ class Configuration implements ConfigurationInterface
                                     ->booleanNode('weak_cert_validation')->end()
                                 ->end()
                             ->end()
+                            ->scalarNode('proxies_namespace')->end()
+                            ->scalarNode('proxies_dir')->end()
                         ->end()
                     ->end()
                 ->end()
