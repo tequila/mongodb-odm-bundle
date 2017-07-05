@@ -6,7 +6,11 @@
         "tequila/mongodb-odm": "dev-master",
         "symfony/config": "^3.3",
         "symfony/dependency-injection": "^3.3",
-        "symfony/http-kernel": "^3.3"
+        "symfony/http-kernel": "^3.3",
+        "symfony/console": "^3.3",
+        "symfony/framework-bundle": "^3.3",
+        "symfony/finder": "^3.3",
+        "ocramius/proxy-manager": "^2.1"
     },
     "autoload": {
         "psr-4": {

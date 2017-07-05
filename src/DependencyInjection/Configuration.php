@@ -22,12 +22,12 @@ class Configuration implements ConfigurationInterface
         $rootNode = $treeBuilder->root('tequila_mongodb');
 
         $this->addConnectionsSection($rootNode);
-        $this->addDatabasesSection($rootNode);
+        $this->addDocumentManagersSection($rootNode);
 
         $rootNode
             ->children()
-                ->scalarNode('default_connection')->end()
-                ->scalarNode('default_database')->end()
+                ->scalarNode('default_connection')->cannotBeEmpty()->end()
+                ->scalarNode('default_document_manager')->cannotBeEmpty()->end()
             ->end();
 
         return $treeBuilder;
@@ -44,7 +44,11 @@ class Configuration implements ConfigurationInterface
                     ->useAttributeAsKey('alias')
                     ->prototype('array')
                         ->children()
-                            ->scalarNode('uri')->isRequired()->end()
+                            ->scalarNode('server')->isRequired()->end()
+                            ->scalarNode('default_database')
+                                ->cannotBeEmpty()
+                                ->defaultValue('tequila')
+                            ->end()
                             ->arrayNode('options')
                                 ->children()
                                     ->scalarNode('appname')->end()
@@ -98,31 +102,33 @@ class Configuration implements ConfigurationInterface
                                     ->booleanNode('weak_cert_validation')->end()
                                 ->end()
                             ->end()
-                            ->scalarNode('proxies_namespace')->end()
-                            ->scalarNode('proxies_dir')->end()
                         ->end()
                     ->end()
                 ->end()
             ->end();
     }
 
-    private function addDatabasesSection(ArrayNodeDefinition $rootNode)
+    private function addDocumentManagersSection(ArrayNodeDefinition $rootNode)
     {
         $rootNode
-            ->fixXmlConfig('database')
+            ->fixXmlConfig('document_manager')
             ->children()
-                ->arrayNode('databases')
-                    ->isRequired()
+                ->arrayNode('document_managers')
                     ->requiresAtLeastOneElement()
                     ->useAttributeAsKey('alias')
                     ->prototype('array')
                         ->children()
-                            ->scalarNode('connection')->cannotBeEmpty()->end()
-                            ->scalarNode('name')
-                                ->isRequired()
+                            ->scalarNode('proxies_namespace')
                                 ->cannotBeEmpty()
+                                ->defaultValue('Tequila\MongoDBBundle\Proxies')
                             ->end()
-                            ->arrayNode('options')
+                            ->scalarNode('proxies_dir')
+                                ->cannotBeEmpty()
+                                ->defaultValue('%kernel.cache_dir%/Tequila/MongoDBBundle/Proxies')
+                            ->end()
+                            ->scalarNode('connection')->cannotBeEmpty()->end()
+                            ->scalarNode('database')->cannotBeEmpty()->end()
+                            ->arrayNode('database_options')
                                 ->children()
                                     ->enumNode('readConcern')
                                         ->values(['linearizable', 'local', 'majority'])
