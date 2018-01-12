@@ -16,7 +16,7 @@ class GenerateProxiesCommand extends ContainerAwareCommand
     public function configure()
     {
         $this
-            ->setName('tequila:mongodb:generate:proxies')
+            ->setName('tequila_mongodb:generate:proxies')
             ->setDescription('Generates document classes using class metadata.')
             ->addArgument(
                 'bundle',

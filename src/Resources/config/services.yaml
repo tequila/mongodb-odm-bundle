@@ -1,0 +1,8 @@
+services:
+    Tequila\MongoDBBundle\Command\GenerateDocumentsCommand:
+        tags:
+            - { name: console.command, command: tequila_mongodb:generate:documents }
+
+    Tequila\MongoDBBundle\Command\GenerateProxiesCommand:
+        tags:
+            - { name: console.command, command: tequila_mongodb:generate:proxies }

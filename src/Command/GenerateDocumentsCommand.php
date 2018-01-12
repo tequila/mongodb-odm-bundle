@@ -15,7 +15,7 @@ class GenerateDocumentsCommand extends ContainerAwareCommand
     public function configure()
     {
         $this
-            ->setName('tequila:mongodb:generate:documents')
+            ->setName('tequila_mongodb:generate:documents')
             ->setDescription('Generates document classes using class metadata.')
             ->addArgument(
                 'bundle',

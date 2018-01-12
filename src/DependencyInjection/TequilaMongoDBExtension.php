@@ -7,10 +7,12 @@ use MongoDB\Database;
 use MongoDB\Driver\ReadConcern;
 use MongoDB\Driver\ReadPreference;
 use MongoDB\Driver\WriteConcern;
+use Symfony\Component\Config\FileLocator;
 use Symfony\Component\DependencyInjection\Alias;
 use Symfony\Component\DependencyInjection\Compiler\CompilerPassInterface;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Definition;
+use Symfony\Component\DependencyInjection\Loader\YamlFileLoader;
 use Symfony\Component\DependencyInjection\Reference;
 use Symfony\Component\HttpKernel\DependencyInjection\ConfigurableExtension;
 use Tequila\MongoDB\ODM\BulkWriteBuilderFactory;
@@ -47,6 +49,9 @@ class TequilaMongoDBExtension extends ConfigurableExtension implements CompilerP
      */
     protected function loadInternal(array $config, ContainerBuilder $container)
     {
+        $locator = new FileLocator(__DIR__.'/../Resources/config');
+        $loader = new YamlFileLoader($container, $locator);
+        $loader->load('services.yaml');
         $this->config = $config;
     }
 
@@ -73,6 +78,7 @@ class TequilaMongoDBExtension extends ConfigurableExtension implements CompilerP
                     $connectionConfig['driverOptions'],
                 ]
             );
+            $clientDefinition->setPublic(true);
             $container->setDefinition($clientId, $clientDefinition);
 
             if ($name === $this->config['default_connection']) {
@@ -117,18 +123,21 @@ class TequilaMongoDBExtension extends ConfigurableExtension implements CompilerP
             $metadataFactoryDefinition = new Definition(StaticMethodAwareFactory::class);
             $metadataFactoryDefinition->setPublic(false);
             $metadataFactoryDefinition->setLazy(true);
+            $metadataFactoryDefinition->setPublic(true);
             $container->setDefinition($metadataFactoryId, $metadataFactoryDefinition);
 
             $bulkBuilderFactoryId = $dmId.'.bulk_builder_factory';
             $bulkBuilderFactoryDefinition = new Definition(BulkWriteBuilderFactory::class);
             $bulkBuilderFactoryDefinition->setPublic(false);
             $bulkBuilderFactoryDefinition->setLazy(true);
+            $bulkBuilderFactoryDefinition->setPublic(true);
             $container->setDefinition($bulkBuilderFactoryId, $bulkBuilderFactoryDefinition);
 
             $repositoryFactoryId = $dmId.'.repository_factory';
             $repositoryFactoryDefinition = new Definition(DefaultRepositoryFactory::class);
             $repositoryFactoryDefinition->setPublic(false);
             $repositoryFactoryDefinition->setLazy(true);
+            $repositoryFactoryDefinition->setPublic(true);
             $container->setDefinition($repositoryFactoryId, $repositoryFactoryDefinition);
 
             $generatorFactoryId = $dmId.'.proxy.generator_factory';
@@ -141,6 +150,7 @@ class TequilaMongoDBExtension extends ConfigurableExtension implements CompilerP
                 ]
             );
             $generatorFactoryDefinition->setLazy(true);
+            $generatorFactoryDefinition->setPublic(true);
             $container->setDefinition($generatorFactoryId, $generatorFactoryDefinition);
 
             $proxyFactoryId = $dmId.'.proxy_factory';
@@ -175,22 +185,22 @@ class TequilaMongoDBExtension extends ConfigurableExtension implements CompilerP
             ]);
             $databaseDefinition->setFactory([new Reference($clientId), 'selectDatabase']);
             $databaseDefinition->setLazy(true);
+            $databaseDefinition->setPublic(true);
             $container->setDefinition($databaseId, $databaseDefinition);
 
-            $container->setDefinition(
-                $dmId,
-                new Definition(DocumentManager::class, [
-                    new Reference($databaseId),
-                    new Reference($bulkBuilderFactoryId),
-                    new Reference($repositoryFactoryId),
-                    new Reference($metadataFactoryId),
-                    new Reference($proxyFactoryId),
-                ])
-            );
+            $dmDefinition = new Definition(DocumentManager::class, [
+                new Reference($databaseId),
+                new Reference($bulkBuilderFactoryId),
+                new Reference($repositoryFactoryId),
+                new Reference($metadataFactoryId),
+                new Reference($proxyFactoryId),
+            ]);
+            $dmDefinition->setPublic(true);
+            $container->setDefinition($dmId, $dmDefinition);
 
             if ($alias === $this->config['default_document_manager']) {
                 $container->setAlias('tequila_mongodb.dm', new Alias($dmId));
-                $container->setAlias(DocumentManager::class, new Alias($dmId));
+                $container->setAlias(DocumentManager::class, (new Alias($dmId))->setPublic(true));
                 $container->setAlias(Database::class, $databaseId);
             }
         }
