@@ -63,18 +63,16 @@ class GenerateProxiesCommand extends ContainerAwareCommand
         $style = new SymfonyStyle($input, $output);
 
         if ($numberOfClasses = count($documentClasses)) {
-            $style->success(
-                sprintf(
-                    'Proxies successfully generated for %d document classes:',
-                    $numberOfClasses
-                )
+            $out = sprintf(
+                'Proxies successfully generated for %d document classes:',
+                $numberOfClasses
             );
-
-            $style->newLine();
+            $out .= PHP_EOL;
             foreach ($documentClasses as $class) {
-                $style->success($class);
-                $style->newLine();
+                $out .= '    - '.$class.PHP_EOL;
             }
+
+            $style->success($out);
         } else {
             $style->warning(
                 sprintf('There is no document classes at location %s.', $path)
