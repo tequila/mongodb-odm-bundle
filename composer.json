@@ -4,13 +4,12 @@
     "type": "symfony-bundle",
     "require": {
         "tequila/mongodb-odm": "dev-master",
-        "symfony/config": "^3.3|^4.0",
-        "symfony/dependency-injection": "^3.3|^4.0",
-        "symfony/http-kernel": "^3.3|^4.0",
-        "symfony/console": "^3.3|^4.0",
-        "symfony/framework-bundle": "^3.3|^4.0",
-        "symfony/finder": "^3.3|^4.0",
-        "ocramius/proxy-manager": "^2.1"
+        "symfony/config": "^4.0",
+        "symfony/dependency-injection": "^4.0",
+        "symfony/http-kernel": "^4.0",
+        "symfony/console": "^4.0",
+        "symfony/framework-bundle": "^4.0",
+        "symfony/finder": "^4.0"
     },
     "autoload": {
         "psr-4": {
@@ -23,7 +22,5 @@
             "name": "Petr Buchin",
             "email": "petrbuchyn@gmail.com"
         }
-    ],
-    "minimum-stability": "dev",
-    "prefer-stable": true
+    ]
 }

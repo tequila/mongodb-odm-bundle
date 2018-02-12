@@ -8,7 +8,6 @@ use MongoDB\Driver\ReadConcern;
 use MongoDB\Driver\ReadPreference;
 use MongoDB\Driver\WriteConcern;
 use Symfony\Component\Config\FileLocator;
-use Symfony\Component\DependencyInjection\Alias;
 use Symfony\Component\DependencyInjection\Compiler\CompilerPassInterface;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Definition;
@@ -20,8 +19,8 @@ use Tequila\MongoDB\ODM\DocumentManager;
 use Tequila\MongoDB\ODM\Metadata\Factory\StaticMethodAwareFactory;
 use Tequila\MongoDB\ODM\Proxy\Factory\CompiledFactory;
 use Tequila\MongoDB\ODM\Proxy\Factory\GeneratorFactory;
+use Tequila\MongoDB\ODM\Proxy\Factory\ProxyFactoryInterface;
 use Tequila\MongoDB\ODM\Repository\Factory\DefaultRepositoryFactory;
-
 
 class TequilaMongoDBExtension extends ConfigurableExtension implements CompilerPassInterface
 {
@@ -86,8 +85,8 @@ class TequilaMongoDBExtension extends ConfigurableExtension implements CompilerP
                     'tequila_mongodb.default_connection',
                     $clientId
                 );
-                $container->setAlias('tequila_mongodb.client', new Alias($clientId));
-                $container->setAlias(Client::class, new Alias($clientId));
+                $container->setAlias('tequila_mongodb.client', $clientId);
+                $container->setAlias(Client::class, $clientId);
             }
         }
     }
@@ -114,30 +113,25 @@ class TequilaMongoDBExtension extends ConfigurableExtension implements CompilerP
             $this->config['default_document_manager'] = reset($documentManagerAliases);
         }
 
-        foreach ($this->config['document_managers'] as $alias => $dmConfig) {
-            $dmId = 'tequila_mongodb.dm.'.$alias;
-            $dmConfig += $dmDefaultConfig;
+        $defaultDmAlias = $this->config['default_document_manager'];
 
+        foreach ($this->config['document_managers'] as $name => $dmConfig) {
+            $dmId = 'tequila_mongodb.dm.'.$name;
+            $dmConfig += $dmDefaultConfig;
 
             $metadataFactoryId = $dmId.'.metadata_factory';
             $metadataFactoryDefinition = new Definition(StaticMethodAwareFactory::class);
             $metadataFactoryDefinition->setPublic(false);
-            $metadataFactoryDefinition->setLazy(true);
-            $metadataFactoryDefinition->setPublic(true);
             $container->setDefinition($metadataFactoryId, $metadataFactoryDefinition);
 
             $bulkBuilderFactoryId = $dmId.'.bulk_builder_factory';
             $bulkBuilderFactoryDefinition = new Definition(BulkWriteBuilderFactory::class);
             $bulkBuilderFactoryDefinition->setPublic(false);
-            $bulkBuilderFactoryDefinition->setLazy(true);
-            $bulkBuilderFactoryDefinition->setPublic(true);
             $container->setDefinition($bulkBuilderFactoryId, $bulkBuilderFactoryDefinition);
 
             $repositoryFactoryId = $dmId.'.repository_factory';
             $repositoryFactoryDefinition = new Definition(DefaultRepositoryFactory::class);
             $repositoryFactoryDefinition->setPublic(false);
-            $repositoryFactoryDefinition->setLazy(true);
-            $repositoryFactoryDefinition->setPublic(true);
             $container->setDefinition($repositoryFactoryId, $repositoryFactoryDefinition);
 
             $generatorFactoryId = $dmId.'.proxy.generator_factory';
@@ -146,33 +140,41 @@ class TequilaMongoDBExtension extends ConfigurableExtension implements CompilerP
                 [
                     $dmConfig['proxies_dir'],
                     $dmConfig['proxies_namespace'],
-                    new Reference($metadataFactoryId)
+                    new Reference($metadataFactoryId),
                 ]
             );
-            $generatorFactoryDefinition->setLazy(true);
             $generatorFactoryDefinition->setPublic(true);
             $container->setDefinition($generatorFactoryId, $generatorFactoryDefinition);
+            if ($name === $defaultDmAlias) {
+                $container->setAlias(GeneratorFactory::class, $generatorFactoryId);
+            }
 
             $proxyFactoryId = $dmId.'.proxy_factory';
             $isDebug = $container->getParameter('kernel.debug');
             $isDevEnv = 'dev' === $container->getParameter('kernel.environment');
             if ($isDebug && $isDevEnv) {
-                $container->setAlias($proxyFactoryId, new Alias($generatorFactoryId));
+                $container->setAlias($proxyFactoryId, $generatorFactoryId);
             } else {
                 $proxyFactoryDefinition = new Definition(
                     CompiledFactory::class,
-                    [$dmConfig['proxies_dir'], $dmConfig['proxies_namespace']]
+                    [
+                        $dmConfig['proxies_dir'],
+                        $dmConfig['proxies_namespace'],
+                    ]
                 );
-                $proxyFactoryDefinition->setPublic(false);
                 $container->setDefinition($proxyFactoryId, $proxyFactoryDefinition);
+            }
+
+            if ($name === $defaultDmAlias) {
+                $container->setAlias(ProxyFactoryInterface::class, $proxyFactoryId);
             }
 
             $clientId = sprintf('tequila_mongodb.clients.%s', $dmConfig['connection']);
             if (!$container->hasDefinition($clientId)) {
                 throw new \LogicException(
                     sprintf(
-                        'Document manager "%s" depends on connection "%s", which is not configured, check your config.',
-                        $alias,
+                        'Document manager "%s" depends on connection "%s", which is not configured. Please check your config.',
+                        $name,
                         $dmConfig['connection']
                     )
                 );
@@ -181,11 +183,9 @@ class TequilaMongoDBExtension extends ConfigurableExtension implements CompilerP
             $databaseId = $dmId.'.database';
             $databaseDefinition = new Definition(Database::class, [
                 $dmConfig['database'],
-                $this->getDatabaseOptions($dmConfig['database_options'])
+                $this->getDatabaseOptions($dmConfig['database_options']),
             ]);
             $databaseDefinition->setFactory([new Reference($clientId), 'selectDatabase']);
-            $databaseDefinition->setLazy(true);
-            $databaseDefinition->setPublic(true);
             $container->setDefinition($databaseId, $databaseDefinition);
 
             $dmDefinition = new Definition(DocumentManager::class, [
@@ -198,9 +198,9 @@ class TequilaMongoDBExtension extends ConfigurableExtension implements CompilerP
             $dmDefinition->setPublic(true);
             $container->setDefinition($dmId, $dmDefinition);
 
-            if ($alias === $this->config['default_document_manager']) {
-                $container->setAlias('tequila_mongodb.dm', new Alias($dmId));
-                $container->setAlias(DocumentManager::class, (new Alias($dmId))->setPublic(true));
+            if ($name === $defaultDmAlias) {
+                $container->setAlias('tequila_mongodb.dm', $dmId);
+                $container->setAlias(DocumentManager::class, $dmId);
                 $container->setAlias(Database::class, $databaseId);
             }
         }

@@ -2,25 +2,41 @@
 
 namespace Tequila\MongoDBBundle\Command;
 
-use Symfony\Bundle\FrameworkBundle\Command\ContainerAwareCommand;
+use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
-use Tequila\MongoDB\ODM\DocumentManager;
-use Tequila\MongoDBBundle\DocumentsGenerator;
+use Symfony\Component\Console\Style\SymfonyStyle;
+use Tequila\MongoDB\ODM\Code\DocumentGenerator;
+use Tequila\MongoDBBundle\DocumentManagerFactory;
 
-class GenerateDocumentsCommand extends ContainerAwareCommand
+class GenerateDocumentsCommand extends Command
 {
+    /**
+     * @var DocumentManagerFactory
+     */
+    private $dmFactory;
+
+    /**
+     * @param DocumentManagerFactory $dmFactory
+     */
+    public function __construct(DocumentManagerFactory $dmFactory)
+    {
+        $this->dmFactory = $dmFactory;
+
+        parent::__construct();
+    }
+
     public function configure()
     {
         $this
             ->setName('tequila_mongodb:generate:documents')
-            ->setDescription('Generates document classes using class metadata.')
+            ->setDescription('Generates document class using class metadata.')
             ->addArgument(
-                'bundle',
+                'documentClass',
                 InputArgument::REQUIRED,
-                'Bundle name or string "app" to generate documents in Symfony 4 {ROOT_DIR}/src/Document'
+                'Fully-qualified class name of the document to generate'
             )
             ->addOption(
                 'dm',
@@ -33,46 +49,14 @@ class GenerateDocumentsCommand extends ContainerAwareCommand
 
     public function execute(InputInterface $input, OutputInterface $output)
     {
-        $bundleName = $input->getArgument('bundle');
-        $dmId = 'tequila_mongodb.dm.'.$input->getOption('dm');
-        $app = $this->getContainer();
-        if ('app' === $bundleName) {
-            // Code for Symfony 4 bundle-less application
-            $bundlePath = $app->getParameter('kernel.root_dir');
-        } else {
-            $bundlesMetadata = $app->getParameter('kernel.bundles_metadata');
-            $bundlePath = null;
-            foreach ($bundlesMetadata as $name => $metadata) {
-                if (strtolower($bundleName) === strtolower($name)) {
-                    $bundlePath = $metadata['path'];
-                }
-            }
+        $documentClass = $input->getArgument('documentClass');
+        $dm = $this->dmFactory->getManager($input->getOption('dm'));
+        $metadata = $dm->getMetadata($documentClass);
 
-            if (null === $bundlePath) {
-                throw new \InvalidArgumentException(
-                    sprintf('Bundle "%s" does not exist.', $bundleName)
-                );
-            }
-        }
+        $documentGenerator = new DocumentGenerator($metadata);
+        $documentGenerator->generateClass();
 
-        $documentsPath = $bundlePath.'/Document';
-        if (!is_dir($documentsPath)) {
-            $output->writeln(
-                sprintf(
-                    'Documents directory "%s" for bundle "%s" does not exist.',
-                    $documentsPath,
-                    $bundleName
-                )
-            );
-            exit();
-        }
-
-        /** @var DocumentManager $dm */
-        $dm = $app->get($dmId);
-
-        $documentsGenerator = new DocumentsGenerator();
-        $generatedDocumentsNumber = $documentsGenerator->generateDocuments($dm, $documentsPath);
-
-        $output->writeln(sprintf('Generated %d document classes.', $generatedDocumentsNumber));
+        $style = new SymfonyStyle($input, $output);
+        $style->success(sprintf('Document %s generated successfully', $documentClass));
     }
 }
