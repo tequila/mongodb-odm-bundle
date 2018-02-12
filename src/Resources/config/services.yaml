@@ -1,8 +1,8 @@
 services:
-    Tequila\MongoDBBundle\Command\GenerateDocumentsCommand:
+    Tequila\MongoDBBundle\Command\GenerateDocumentCommand:
         arguments: ['@tequila_mongodb']
         tags:
-            - { name: console.command, command: tequila_mongodb:generate:documents }
+            - { name: console.command, command: tequila_mongodb:generate:document }
 
     Tequila\MongoDBBundle\Command\GenerateProxiesCommand:
         arguments: ['@tequila_mongodb']

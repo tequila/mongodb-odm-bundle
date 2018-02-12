@@ -11,7 +11,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 use Tequila\MongoDB\ODM\Code\DocumentGenerator;
 use Tequila\MongoDBBundle\DocumentManagerFactory;
 
-class GenerateDocumentsCommand extends Command
+class GenerateDocumentCommand extends Command
 {
     /**
      * @var DocumentManagerFactory
@@ -31,7 +31,7 @@ class GenerateDocumentsCommand extends Command
     public function configure()
     {
         $this
-            ->setName('tequila_mongodb:generate:documents')
+            ->setName('tequila_mongodb:generate:document')
             ->setDescription('Generates document class using class metadata.')
             ->addArgument(
                 'documentClass',
