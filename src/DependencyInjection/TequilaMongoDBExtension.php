@@ -85,8 +85,8 @@ class TequilaMongoDBExtension extends ConfigurableExtension implements CompilerP
                     'tequila_mongodb.default_connection',
                     $clientId
                 );
-                $container->setAlias('tequila_mongodb.client', $clientId);
-                $container->setAlias(Client::class, $clientId);
+                $container->setAlias('tequila_mongodb.client', $clientId)->setPublic(true);
+                $container->setAlias(Client::class, $clientId)->setPublic(true);
             }
         }
     }
@@ -150,9 +150,7 @@ class TequilaMongoDBExtension extends ConfigurableExtension implements CompilerP
             }
 
             $proxyFactoryId = $dmId.'.proxy_factory';
-            $isDebug = $container->getParameter('kernel.debug');
-            $isDevEnv = 'dev' === $container->getParameter('kernel.environment');
-            if ($isDebug && $isDevEnv) {
+            if (in_array($container->getParameter('kernel.environment'), ['dev', 'test'])) {
                 $container->setAlias($proxyFactoryId, $generatorFactoryId);
             } else {
                 $proxyFactoryDefinition = new Definition(
@@ -166,7 +164,7 @@ class TequilaMongoDBExtension extends ConfigurableExtension implements CompilerP
             }
 
             if ($name === $defaultDmAlias) {
-                $container->setAlias(ProxyFactoryInterface::class, $proxyFactoryId);
+                $container->setAlias(ProxyFactoryInterface::class, $proxyFactoryId)->setPublic(true);
             }
 
             $clientId = sprintf('tequila_mongodb.clients.%s', $dmConfig['connection']);
@@ -199,9 +197,9 @@ class TequilaMongoDBExtension extends ConfigurableExtension implements CompilerP
             $container->setDefinition($dmId, $dmDefinition);
 
             if ($name === $defaultDmAlias) {
-                $container->setAlias('tequila_mongodb.dm', $dmId);
-                $container->setAlias(DocumentManager::class, $dmId);
-                $container->setAlias(Database::class, $databaseId);
+                $container->setAlias('tequila_mongodb.dm', $dmId)->setPublic(true);
+                $container->setAlias(DocumentManager::class, $dmId)->setPublic(true);
+                $container->setAlias(Database::class, $databaseId)->setPublic(true);
             }
         }
     }
